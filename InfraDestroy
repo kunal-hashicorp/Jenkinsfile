@@ -1,0 +1,33 @@
+# Infra Destroy
+
+pipeline {
+  agent any
+
+  environment {
+    GOOGLE_APPLICATION_CREDENTIALS = credentials('gcp-sa-key')  // Jenkins credential ID
+    TF_VAR_gcp_project             = 'hc-83b62b0958c0408887c53f13da1'
+    TF_VAR_ssh_user                = 'jenkins'                                // Match with create pipeline
+    TF_VAR_ssh_pub_key_path        = 'keys/jenkins_gcp_key.pub'              // Path relative to repo
+  }
+
+  stages {
+    stage('Checkout') {
+      steps {
+        git branch: 'main', url: 'https://github.com/kunal-hashicorp/GCP-Infra.git'
+      }
+    }
+
+    stage('Terraform Init') {
+      steps {
+        sh 'terraform init -reconfigure'
+      }
+    }
+
+    stage('Terraform Destroy') {
+      steps {
+        input "Approve to destroy resources?"
+        sh 'terraform destroy -auto-approve'
+      }
+    }
+  }
+}
