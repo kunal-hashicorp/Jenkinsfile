@@ -1,0 +1,50 @@
+# TFE Installation
+
+pipeline {
+  agent any
+
+  parameters {
+    string(name: 'PRIVATE_IP', description: 'Private IP of the GCP VM')
+    string(name: 'PUBLIC_IP', description: 'Public IP of the GCP VM')
+    string(name: 'RELEASE_VERSION', description: 'PTFE release sequence number')
+    string(name: 'DOMAIN_NAME', description: 'Domain name (e.g. example.com)')
+  }
+
+  environment {
+    SSH_USER = "jenkins"
+  }
+
+  stages {
+    stage('Install PTFE') {
+      steps {
+        sshagent(['gcp-ssh-key']) {
+          sh """
+            ssh -o StrictHostKeyChecking=no ${SSH_USER}@${params.PUBLIC_IP} bash -s <<EOF
+set -euo pipefail
+
+echo "[INFO] Preparing PTFE install directory..."
+mkdir -p ~/md-test/certs
+cd ~/md-test
+
+echo "[INFO] Downloading PTFE installer..."
+curl -o install.sh https://install.terraform.io/ptfe/stable
+chmod +x install.sh
+
+echo "[INFO] Running PTFE installer non-interactively..."
+sudo bash ./install.sh \\
+  release-sequence=${params.RELEASE_VERSION} \\
+  no-proxy \\
+  private-address=${params.PRIVATE_IP} \\
+  public-address=${params.PUBLIC_IP}
+
+echo "[INFO] Copying TLS certs..."
+sudo cp -p /etc/letsencrypt/live/${params.DOMAIN_NAME}/fullchain.pem certs/cert.pem
+sudo cp -p /etc/letsencrypt/live/${params.DOMAIN_NAME}/privkey.pem certs/key.pem
+cp certs/cert.pem certs/bundle.pem
+EOF
+          """
+        }
+      }
+    }
+  }
+}
