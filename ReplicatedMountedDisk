@@ -1,4 +1,4 @@
-# Install Replicated Mounted Disk Master Pipeline
+// Install Replicated Mounted Disk Master Pipeline
 
 pipeline {
   agent any
