@@ -1,0 +1,39 @@
+# Install certbot and generate certificate
+
+pipeline {
+  agent any
+
+  parameters {
+    string(name: 'VM_PUBLIC_IP', description: 'Public IP of the GCP VM')
+    string(name: 'DOMAIN_NAME', description: 'Domain name (e.g. example.com)')
+  }
+
+  stages {
+    stage('Install Certbot and Generate TLS Certificate') {
+      steps {
+        sshagent(credentials: ['gcp-ssh-key']) {
+          sh """
+            echo '[INFO] Connecting to ${params.VM_PUBLIC_IP}...'
+            ssh -o StrictHostKeyChecking=no jenkins@${params.VM_PUBLIC_IP} 'bash -s' <<EOF
+set -e
+echo '[INFO] Installing Certbot...'
+sudo apt update
+sudo apt install certbot -y
+
+echo '[INFO] Requesting TLS cert for ${params.DOMAIN_NAME}...'
+sudo certbot certonly --standalone \\
+  --preferred-challenges http \\
+  --email kunal.singh@hashicorp.com \\
+  --agree-tos \\
+  --no-eff-email \\
+  -d ${params.DOMAIN_NAME}
+
+echo '[INFO] Listing generated certificates...'
+sudo ls -l /etc/letsencrypt/live/${params.DOMAIN_NAME}
+EOF
+          """
+        }
+      }
+    }
+  }
+}
