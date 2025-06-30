@@ -1,4 +1,4 @@
-# SSH in VM and Install Docker
+// SSH in VM and Install Docker
 
 pipeline {
   agent any
