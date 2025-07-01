@@ -13,7 +13,7 @@ pipeline {
   stages {
     stage('Step 1 - Install Docker') {
       steps {
-        build job: 'SSH VM', parameters: [
+        build job: 'Docker Installation', parameters: [
           string(name: 'VM_PUBLIC_IP', value: params.VM_PUBLIC_IP)
         ]
       }
@@ -21,7 +21,7 @@ pipeline {
 
     stage('Step 2 - Generate TLS Cert') {
       steps {
-        build job: 'GCP certbot install', parameters: [
+        build job: 'Generate Certificate', parameters: [
           string(name: 'VM_PUBLIC_IP', value: params.VM_PUBLIC_IP),
           string(name: 'DOMAIN_NAME', value: params.DOMAIN_NAME)
         ]
@@ -30,7 +30,7 @@ pipeline {
 
     stage('Step 3 - Install PTFE') {
       steps {
-        build job: 'GCP Replicated MD install', parameters: [
+        build job: 'TFE installer', parameters: [
           string(name: 'PRIVATE_IP', value: params.VM_PRIVATE_IP),
           string(name: 'PUBLIC_IP', value: params.VM_PUBLIC_IP),
           string(name: 'RELEASE_VERSION', value: params.RELEASE_VERSION),
