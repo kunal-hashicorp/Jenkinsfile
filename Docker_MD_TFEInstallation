@@ -1,0 +1,74 @@
+# Docker with Mounted Disk
+
+pipeline {
+  agent any
+
+  parameters {
+    string(name: 'PRIVATE_IP', description: 'Private IP of the GCP VM')
+    string(name: 'PUBLIC_IP', description: 'Public IP of the GCP VM')
+    string(name: 'RELEASE_VERSION', description: 'TFE release version (e.g. 770)')
+    string(name: 'DOMAIN_NAME', description: 'FQDN (e.g. my.domain.com)')
+    password(name: 'TFE_LICENSE', description: 'TFE license string')
+    string(name: 'GIT_REPO_URL', defaultValue: 'https://github.com/your-org/tfe-compose', description: 'GitHub repo containing compose-template.yml')
+    string(name: 'GIT_BRANCH', defaultValue: 'main', description: 'Branch to pull template from')
+  }
+
+  environment {
+    SSH_USER = "jenkins"
+  }
+
+  stages {
+
+    stage('Clone Compose Template') {
+      steps {
+        git branch: params.GIT_BRANCH,
+            url: params.GIT_REPO_URL
+      }
+    }
+
+    stage('Generate compose.yml from template') {
+      steps {
+        sh '''
+          mkdir -p fdo-test
+          sed -e "s|__TFE_VERSION__|${RELEASE_VERSION}|g" \\
+              -e "s|__TFE_LICENSE__|${TFE_LICENSE}|g" \\
+              -e "s|__DOMAIN_NAME__|${DOMAIN_NAME}|g" \\
+              compose-template.yml > fdo-test/compose.yml
+        '''
+      }
+    }
+
+    stage('Upload compose.yml to VM') {
+      steps {
+        sshagent(['gcp-ssh-key']) {
+          sh """
+            scp -o StrictHostKeyChecking=no fdo-test/compose.yml ${SSH_USER}@${params.PUBLIC_IP}:/home/${SSH_USER}/fdo-test/compose.yml
+          """
+        }
+      }
+    }
+
+    stage('Install TFE') {
+      steps {
+        sshagent(['gcp-ssh-key']) {
+          sh """
+            ssh -o StrictHostKeyChecking=no ${SSH_USER}@${params.PUBLIC_IP} bash -s <<EOF
+set -euo pipefail
+
+mkdir -p ~/fdo-test/certs
+cd ~/fdo-test
+
+sudo cp -p /etc/letsencrypt/live/${params.DOMAIN_NAME}/fullchain.pem certs/cert.pem
+sudo cp -p /etc/letsencrypt/live/${params.DOMAIN_NAME}/privkey.pem certs/key.pem
+cp certs/cert.pem certs/bundle.pem
+
+# Start Docker compose
+docker compose up --detach
+
+EOF
+          """
+        }
+      }
+    }
+  }
+}
