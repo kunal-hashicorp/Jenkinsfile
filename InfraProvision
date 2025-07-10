@@ -1,0 +1,54 @@
+# Create Infra
+
+pipeline {
+  agent any
+
+  parameters {
+    string(name: 'INSTANCE_TYPE', defaultValue: 'e2-standard-4', description: 'GCE machine type (e.g., e2-standard-4, n1-standard-1)')
+  }
+
+  environment {
+    GOOGLE_APPLICATION_CREDENTIALS = credentials('gcp-sa-key')
+    TF_VAR_gcp_project             = 'hc-83b62b0958c0408887c53f13da1'
+    TF_VAR_ssh_user                = 'jenkins'
+    TF_VAR_ssh_pub_key_path       = 'keys/jenkins_gcp_key.pub'
+    TF_VAR_instance_type          = "${params.INSTANCE_TYPE}"
+  }
+
+  stages {
+    stage('Checkout') {
+      steps {
+        git branch: 'main', url: 'https://github.com/kunal-hashicorp/GCP-Infra.git'
+      }
+    }
+
+    stage('Terraform Init') {
+      steps {
+        sh 'terraform init -reconfigure'
+      }
+    }
+
+    stage('Terraform Plan') {
+      steps {
+        sh 'terraform plan -out=tfplan'
+      }
+    }
+
+    stage('Terraform Apply') {
+      steps {
+        sh 'terraform apply tfplan'
+      }
+    }
+
+    stage('Terraform Output') {
+      steps {
+        script {
+          env.VM_PUBLIC_IP  = sh(script: "terraform output -raw instance_public_ip", returnStdout: true).trim()
+          env.VM_PRIVATE_IP = sh(script: "terraform output -raw instance_private_ip", returnStdout: true).trim()
+          echo "Public IP: ${env.VM_PUBLIC_IP}"
+          echo "Private IP: ${env.VM_PRIVATE_IP}"
+        }
+      }
+    }
+  }
+}
