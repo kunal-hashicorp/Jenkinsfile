@@ -6,7 +6,7 @@ pipeline {
   }
 
   stages {
-    stage('SSH into VM and Install Docker + Compose') {
+    stage('Install Docker and Compose') {
       steps {
         sshagent(credentials: ['gcp-ssh-key']) {
           sh '''
