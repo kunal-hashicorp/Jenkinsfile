@@ -30,7 +30,7 @@ pipeline {
 
     stage('Step 3 - Install PTFE') {
       steps {
-        build job: 'TFE installer', parameters: [
+        build job: 'Replicated TFE installer', parameters: [
           string(name: 'PRIVATE_IP', value: params.VM_PRIVATE_IP),
           string(name: 'PUBLIC_IP', value: params.VM_PUBLIC_IP),
           string(name: 'RELEASE_VERSION', value: params.RELEASE_VERSION),
