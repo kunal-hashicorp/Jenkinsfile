@@ -1,4 +1,4 @@
-# Docker with Mounted Disk
+// TFE installation for Docker with Mounted Disk
 
 pipeline {
   agent any
@@ -9,8 +9,6 @@ pipeline {
     string(name: 'RELEASE_VERSION', description: 'TFE release version')
     string(name: 'DOMAIN_NAME', description: 'FQDN (e.g. my.domain.com)')
     password(name: 'TFE_LICENSE', description: 'TFE license string')
-    string(name: 'GIT_REPO_URL', defaultValue: 'https://github.com/your-org/tfe-compose', description: 'GitHub repo containing compose-template.yml')
-    string(name: 'GIT_BRANCH', defaultValue: 'main', description: 'Branch to pull template from')
   }
 
   environment {
@@ -21,8 +19,7 @@ pipeline {
 
     stage('Clone Compose Template') {
       steps {
-        git branch: params.GIT_BRANCH,
-            url: params.GIT_REPO_URL
+       git branch: 'main', url: 'https://github.com/kunal-hashicorp/DockerCompose.git'
       }
     }
 
