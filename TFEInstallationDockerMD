@@ -19,7 +19,7 @@ pipeline {
 
     stage('Clone Compose Template') {
       steps {
-       git branch: 'main', url: 'https://github.com/kunal-hashicorp/DockerCompose.git'
+        git branch: 'main', url: 'https://github.com/kunal-hashicorp/DockerCompose.git'
       }
     }
 
@@ -30,7 +30,7 @@ pipeline {
           sed -e "s|__TFE_VERSION__|${RELEASE_VERSION}|g" \\
               -e "s|__TFE_LICENSE__|${TFE_LICENSE}|g" \\
               -e "s|__DOMAIN_NAME__|${DOMAIN_NAME}|g" \\
-              compose-template.yml > fdo-test/compose.yml
+              DockerCompose/compose-template.yml > fdo-test/compose.yml
         '''
       }
     }
@@ -39,7 +39,8 @@ pipeline {
       steps {
         sshagent(['gcp-ssh-key']) {
           sh """
-            scp -o StrictHostKeyChecking=no fdo-test/compose.yml ${SSH_USER}@${params.PUBLIC_IP}:/home/${SSH_USER}/fdo-test/compose.yml
+            ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${SSH_USER}@${params.PUBLIC_IP} mkdir -p ~/fdo-test
+            scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null fdo-test/compose.yml ${SSH_USER}@${params.PUBLIC_IP}:~/fdo-test/compose.yml
           """
         }
       }
@@ -49,20 +50,24 @@ pipeline {
       steps {
         sshagent(['gcp-ssh-key']) {
           sh """
-            ssh -o StrictHostKeyChecking=no ${SSH_USER}@${params.PUBLIC_IP} bash -s <<EOF
-set -euo pipefail
+            ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${SSH_USER}@${params.PUBLIC_IP} bash -s <<EOF
+              set -euo pipefail
 
-mkdir -p ~/fdo-test/certs
-cd ~/fdo-test
+              echo "[INFO] Creating certs directory and preparing compose environment..."
+              mkdir -p ~/fdo-test/certs
+              cd ~/fdo-test
 
-sudo cp -p /etc/letsencrypt/live/${params.DOMAIN_NAME}/fullchain.pem certs/cert.pem
-sudo cp -p /etc/letsencrypt/live/${params.DOMAIN_NAME}/privkey.pem certs/key.pem
-cp certs/cert.pem certs/bundle.pem
+              echo "[INFO] Copying TLS certificates..."
+              sudo cp -p /etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem certs/cert.pem
+              sudo cp -p /etc/letsencrypt/live/${DOMAIN_NAME}/privkey.pem certs/key.pem
+              cp certs/cert.pem certs/bundle.pem
 
-# Start Docker compose
-docker compose up --detach
+              echo "[INFO] Logging into Docker registry..."
+              echo '${TFE_LICENSE}' | sudo docker login --username terraform --password-stdin images.releases.hashicorp.com
 
-EOF
+              echo "[INFO] Starting Docker Compose..."
+              sudo docker compose up -d
+            EOF
           """
         }
       }
