@@ -1,0 +1,49 @@
+// SSH in VM and Install Docker Compose
+
+pipeline {
+  agent any
+
+  parameters {
+    string(name: 'VM_PUBLIC_IP', description: 'Public IP of the GCP VM')
+  }
+
+  stages {
+    stage('SSH into VM and Install Docker Compose') {
+      steps {
+        sshagent(credentials: ['gcp-ssh-key']) {
+          sh """
+            echo '[INFO] Connecting to ${params.VM_PUBLIC_IP} as jenkins ...'
+            ssh -o StrictHostKeyChecking=no jenkins@${params.VM_PUBLIC_IP} <<EOF
+set -e
+echo '[INFO] Updating packages...'
+sudo apt-get update
+
+echo '[INFO] Installing required dependencies...'
+sudo apt-get install -y ca-certificates curl gnupg
+
+echo '[INFO] Creating keyrings directory...'
+sudo install -m 0755 -d /etc/apt/keyrings
+
+echo '[INFO] Downloading Docker GPG key...'
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+
+echo '[INFO] Setting up Docker repository...'
+echo "deb [arch=\$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \\
+\$(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+echo '[INFO] Updating package index...'
+sudo apt-get update
+
+echo '[INFO] Installing Docker Compose plugin...'
+sudo apt-get install -y docker-compose-plugin
+
+echo '[INFO] Verifying Docker Compose installation...'
+docker compose version
+EOF
+          """
+        }
+      }
+    }
+  }
+}
