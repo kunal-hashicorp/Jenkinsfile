@@ -1,4 +1,4 @@
-# Create Infra
+// Create Infra
 
 pipeline {
   agent any
