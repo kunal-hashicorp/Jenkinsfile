@@ -6,7 +6,7 @@ pipeline {
   parameters {
     string(name: 'PRIVATE_IP', description: 'Private IP of the GCP VM')
     string(name: 'PUBLIC_IP', description: 'Public IP of the GCP VM')
-    string(name: 'RELEASE_VERSION', description: 'TFE release version (e.g. 770)')
+    string(name: 'RELEASE_VERSION', description: 'TFE release version')
     string(name: 'DOMAIN_NAME', description: 'FQDN (e.g. my.domain.com)')
     password(name: 'TFE_LICENSE', description: 'TFE license string')
     string(name: 'GIT_REPO_URL', defaultValue: 'https://github.com/your-org/tfe-compose', description: 'GitHub repo containing compose-template.yml')
