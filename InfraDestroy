@@ -4,10 +4,8 @@ pipeline {
   agent any
 
   environment {
-    GOOGLE_APPLICATION_CREDENTIALS = credentials('gcp-sa-key')  // Jenkins credential ID
-    TF_VAR_gcp_project             = 'hc-83b62b0958c0408887c53f13da1'
-    TF_VAR_ssh_user                = 'jenkins'                                // Match with create pipeline
-    TF_VAR_ssh_pub_key_path        = 'keys/jenkins_gcp_key.pub'              // Path relative to repo
+    // Inject GCP credentials from Jenkins secret file
+    GOOGLE_APPLICATION_CREDENTIALS = credentials('gcp-sa-key')
   }
 
   stages {
@@ -26,8 +24,9 @@ pipeline {
     stage('Terraform Destroy') {
       steps {
         input "Approve to destroy resources?"
-        sh 'terraform destroy -auto-approve'
+        sh 'terraform destroy -var-file=terraform.tfvars -auto-approve'
       }
     }
   }
 }
+
