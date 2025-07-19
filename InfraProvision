@@ -8,11 +8,8 @@ pipeline {
   }
 
   environment {
+    // Jenkins injects the path to your GCP service account JSON
     GOOGLE_APPLICATION_CREDENTIALS = credentials('gcp-sa-key')
-    TF_VAR_gcp_project             = 'hc-83b62b0958c0408887c53f13da1'
-    TF_VAR_ssh_user                = 'jenkins'
-    TF_VAR_ssh_pub_key_path       = 'keys/jenkins_gcp_key.pub'
-    TF_VAR_instance_type          = "${params.INSTANCE_TYPE}"
   }
 
   stages {
@@ -30,7 +27,7 @@ pipeline {
 
     stage('Terraform Plan') {
       steps {
-        sh 'terraform plan -out=tfplan'
+        sh 'terraform plan -var-file=terraform.tfvars -out=tfplan'
       }
     }
 
