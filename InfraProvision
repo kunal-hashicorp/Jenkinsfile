@@ -15,7 +15,7 @@ pipeline {
   stages {
     stage('Checkout') {
       steps {
-        git branch: 'main', url: 'https://github.com/kunal-hashicorp/GCP-Infra.git'
+        git branch: 'feature/Test', url: 'https://github.com/kunal-hashicorp/GCP-Infra.git'
       }
     }
 
