@@ -10,13 +10,12 @@ pipeline {
       steps {
         sshagent(credentials: ['gcp-ssh-key']) {
           sh """
-            echo "[INFO] Cleaning known_hosts entry for ${params.VM_PUBLIC_IP}..."
-            ssh-keygen -R ${params.VM_PUBLIC_IP} || true
+            echo "[INFO] Cleaning SSH known_hosts..."
+            ssh-keygen -R "${params.VM_PUBLIC_IP}" || true
 
             echo "[INFO] Connecting to ${params.VM_PUBLIC_IP} as jenkins ..."
             ssh -o StrictHostKeyChecking=no jenkins@${params.VM_PUBLIC_IP} << 'EOF'
               set -e
-
               echo "[INFO] Updating system packages..."
               sudo apt-get update
 
@@ -35,17 +34,16 @@ pipeline {
               echo "[INFO] Removing broken Compose plugin (if any)..."
               sudo apt-get purge -y docker-compose-plugin docker-buildx-plugin || true
 
-              echo "[INFO] Installing Docker Compose via standalone binary..."
+              echo "[INFO] Installing Docker Compose..."
               DOCKER_COMPOSE_VERSION="2.24.6"
               sudo curl -L "https://github.com/docker/compose/releases/download/v\${DOCKER_COMPOSE_VERSION}/docker-compose-\$(uname -s)-\$(uname -m)" -o /usr/local/bin/docker-compose
               sudo chmod +x /usr/local/bin/docker-compose
 
-              echo "[INFO] Creating symlink to docker compose v2 syntax..."
+              echo "[INFO] Creating Docker Compose symlinks..."
               sudo ln -sf /usr/local/bin/docker-compose /usr/local/bin/docker-compose-v2
               sudo mkdir -p ~/.docker/cli-plugins
               sudo ln -sf /usr/local/bin/docker-compose ~/.docker/cli-plugins/docker-compose
 
-              echo "[INFO] Docker Compose version:"
               docker-compose --version
 EOF
           """
