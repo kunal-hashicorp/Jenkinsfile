@@ -9,43 +9,46 @@ pipeline {
     stage('Install Docker and Compose') {
       steps {
         sshagent(credentials: ['gcp-ssh-key']) {
-          sh '''
-            echo "[INFO] Connecting to ${VM_PUBLIC_IP} as jenkins ..."
-            ssh -o StrictHostKeyChecking=no jenkins@${VM_PUBLIC_IP} <<'EOF'
-set -e
+          sh """
+            echo "[INFO] Cleaning known_hosts entry for ${params.VM_PUBLIC_IP}..."
+            ssh-keygen -R ${params.VM_PUBLIC_IP} || true
 
-echo "[INFO] Updating system packages..."
-sudo apt-get update
+            echo "[INFO] Connecting to ${params.VM_PUBLIC_IP} as jenkins ..."
+            ssh -o StrictHostKeyChecking=no jenkins@${params.VM_PUBLIC_IP} << 'EOF'
+              set -e
 
-echo "[INFO] Installing Docker via .deb packages..."
-wget -nc https://download.docker.com/linux/ubuntu/dists/focal/pool/stable/amd64/containerd.io_1.6.24-1_amd64.deb
-wget -nc https://download.docker.com/linux/ubuntu/dists/focal/pool/stable/amd64/docker-ce-cli_24.0.2-1~ubuntu.20.04~focal_amd64.deb
-wget -nc https://download.docker.com/linux/ubuntu/dists/focal/pool/stable/amd64/docker-ce_24.0.2-1~ubuntu.20.04~focal_amd64.deb
+              echo "[INFO] Updating system packages..."
+              sudo apt-get update
 
-sudo dpkg -i containerd.io_1.6.24-1_amd64.deb
-sudo dpkg -i docker-ce-cli_24.0.2-1~ubuntu.20.04~focal_amd64.deb
-sudo dpkg -i docker-ce_24.0.2-1~ubuntu.20.04~focal_amd64.deb
+              echo "[INFO] Installing Docker via .deb packages..."
+              wget -nc https://download.docker.com/linux/ubuntu/dists/focal/pool/stable/amd64/containerd.io_1.6.24-1_amd64.deb
+              wget -nc https://download.docker.com/linux/ubuntu/dists/focal/pool/stable/amd64/docker-ce-cli_24.0.2-1~ubuntu.20.04~focal_amd64.deb
+              wget -nc https://download.docker.com/linux/ubuntu/dists/focal/pool/stable/amd64/docker-ce_24.0.2-1~ubuntu.20.04~focal_amd64.deb
 
-echo "[INFO] Docker version:"
-docker --version
+              sudo dpkg -i containerd.io_1.6.24-1_amd64.deb
+              sudo dpkg -i docker-ce-cli_24.0.2-1~ubuntu.20.04~focal_amd64.deb
+              sudo dpkg -i docker-ce_24.0.2-1~ubuntu.20.04~focal_amd64.deb
 
-echo "[INFO] Removing broken Compose plugin (if any)..."
-sudo apt-get purge -y docker-compose-plugin docker-buildx-plugin || true
+              echo "[INFO] Docker version:"
+              docker --version
 
-echo "[INFO] Installing Docker Compose via standalone binary..."
-DOCKER_COMPOSE_VERSION="2.24.6"
-sudo curl -L "https://github.com/docker/compose/releases/download/v\${DOCKER_COMPOSE_VERSION}/docker-compose-\$(uname -s)-\$(uname -m)" -o /usr/local/bin/docker-compose
-sudo chmod +x /usr/local/bin/docker-compose
+              echo "[INFO] Removing broken Compose plugin (if any)..."
+              sudo apt-get purge -y docker-compose-plugin docker-buildx-plugin || true
 
-echo "[INFO] Creating symlink to docker compose v2 syntax..."
-sudo ln -sf /usr/local/bin/docker-compose /usr/local/bin/docker-compose-v2
-sudo mkdir -p ~/.docker/cli-plugins
-sudo ln -sf /usr/local/bin/docker-compose ~/.docker/cli-plugins/docker-compose
+              echo "[INFO] Installing Docker Compose via standalone binary..."
+              DOCKER_COMPOSE_VERSION="2.24.6"
+              sudo curl -L "https://github.com/docker/compose/releases/download/v\${DOCKER_COMPOSE_VERSION}/docker-compose-\$(uname -s)-\$(uname -m)" -o /usr/local/bin/docker-compose
+              sudo chmod +x /usr/local/bin/docker-compose
 
-echo "[INFO] Docker Compose version:"
-docker-compose --version
+              echo "[INFO] Creating symlink to docker compose v2 syntax..."
+              sudo ln -sf /usr/local/bin/docker-compose /usr/local/bin/docker-compose-v2
+              sudo mkdir -p ~/.docker/cli-plugins
+              sudo ln -sf /usr/local/bin/docker-compose ~/.docker/cli-plugins/docker-compose
+
+              echo "[INFO] Docker Compose version:"
+              docker-compose --version
 EOF
-          '''
+          """
         }
       }
     }
