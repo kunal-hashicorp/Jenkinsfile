@@ -39,8 +39,8 @@ pipeline {
       steps {
         sshagent(['gcp-ssh-key']) {
           sh """
-            ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${SSH_USER}@${params.PUBLIC_IP} mkdir -p ~/fdo-test
-            scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null fdo-test/compose.yml ${SSH_USER}@${params.PUBLIC_IP}:~/fdo-test/compose.yml
+            ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${SSH_USER}@${params.PUBLIC_IP} mkdir -p \$HOME/fdo-test
+            scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null fdo-test/compose.yml ${SSH_USER}@${params.PUBLIC_IP}:\$HOME/fdo-test/compose.yml
           """
         }
       }
@@ -50,12 +50,18 @@ pipeline {
       steps {
         sshagent(['gcp-ssh-key']) {
           sh """
-            ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${SSH_USER}@${params.PUBLIC_IP} bash -s <<EOF
+            ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${SSH_USER}@${params.PUBLIC_IP} bash -s <<'EOF'
               set -euo pipefail
 
+              echo "[INFO] Verifying docker compose is installed..."
+              if ! command -v docker &>/dev/null || ! docker compose version &>/dev/null; then
+                echo "ERROR: 'docker compose' not found. Please install it before running this pipeline."
+                exit 1
+              fi
+
               echo "[INFO] Creating certs directory and preparing compose environment..."
-              mkdir -p ~/fdo-test/certs
-              cd ~/fdo-test
+              mkdir -p \$HOME/fdo-test/certs
+              cd \$HOME/fdo-test
 
               echo "[INFO] Copying TLS certificates..."
               sudo cp -p /etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem certs/cert.pem
@@ -63,7 +69,9 @@ pipeline {
               cp certs/cert.pem certs/bundle.pem
 
               echo "[INFO] Logging into Docker registry..."
+              set +x
               echo '${TFE_LICENSE}' | sudo docker login --username terraform --password-stdin images.releases.hashicorp.com
+              set -x
 
               echo "[INFO] Starting Docker Compose..."
               sudo docker compose up -d
