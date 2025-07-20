@@ -35,15 +35,16 @@ pipeline {
       }
     }
 
-    stage('Upload compose.yml to VM') {
-  sshagent (credentials: ['jenkins']) {
-    sh '''
-      ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null jenkins@34.16.46.234 "mkdir -p /home/jenkins/fdo-test"
-      scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null fdo-test/compose.yml jenkins@34.16.46.234:/home/jenkins/fdo-test/
-    '''
+  stage('Upload compose.yml to VM') {
+  steps {
+    sshagent(['gcp-ssh-key']) {
+      sh '''
+        ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null jenkins@${params.PUBLIC_IP} "mkdir -p /home/jenkins/fdo-test"
+        scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null fdo-test/compose.yml jenkins@${params.PUBLIC_IP}:/home/jenkins/fdo-test/
+      '''
+    }
   }
 }
-
 
     stage('Install TFE') {
       steps {
