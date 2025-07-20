@@ -1,16 +1,17 @@
 pipeline {
   agent any
 
-  parameters {
-    string(name: 'PRIVATE_IP', description: 'Private IP of the GCP VM')
-    string(name: 'PUBLIC_IP', description: 'Public IP of the GCP VM')
-    string(name: 'RELEASE_VERSION', description: 'TFE release version')
-    string(name: 'DOMAIN_NAME', description: 'FQDN (e.g. my.domain.com)')
-    password(name: 'TFE_LICENSE', description: 'TFE license string')
-  }
-
   environment {
-    SSH_USER = "jenkins"
+    GOOGLE_APPLICATION_CREDENTIALS = credentials('gcp-sa-key') // Jenkins credential ID
+    TF_VAR_gcp_project             = 'hc-83b62b0958c0408887c53f13da1'
+    TF_VAR_ssh_user                = 'jenkins' // Ensure this user exists and has permissions
+    TF_VAR_ssh_pub_key             = credentials('gcp-ssh-pubkey') // Jenkins credential ID
+    TFE_LICENSE                    = credentials('tfe-license')
+    TFE_VERSION                    = 'v202410-1'
+    DOMAIN_NAME                    = 'ksfdomd.kunalsingh-17b577.gcp.sbx.hashicorpdemo.com'
+    ZONE                           = 'us-central1-a' // Update as per your deployment
+    NETWORK                        = 'default' // Update if using custom VPC
+    RULE_NAME                      = 'allow-http-jenkins'
   }
 
   stages {
@@ -24,57 +25,53 @@ pipeline {
       steps {
         sh '''
           mkdir -p fdo-test
-          sed -e "s|__TFE_VERSION__|${RELEASE_VERSION}|g" \\
-              -e "s|__TFE_LICENSE__|${TFE_LICENSE}|g" \\
-              -e "s|__DOMAIN_NAME__|${DOMAIN_NAME}|g" \\
+          sed -e s|__TFE_VERSION__|${TFE_VERSION}|g \
+              -e s|__TFE_LICENSE__|${TFE_LICENSE}|g \
+              -e s|__DOMAIN_NAME__|${DOMAIN_NAME}|g \
               DockerCompose/compose-template.yml > fdo-test/compose.yml
+        '''
+      }
+    }
+
+    stage('Create firewall rule (if not exists)') {
+      steps {
+        sh '''
+          if ! gcloud compute firewall-rules describe ${RULE_NAME} --project=${TF_VAR_gcp_project}; then
+            gcloud compute firewall-rules create ${RULE_NAME} \
+              --project=${TF_VAR_gcp_project} \
+              --allow tcp:80 \
+              --direction=INGRESS \
+              --priority=1000 \
+              --network=${NETWORK} \
+              --source-ranges=0.0.0.0/0 \
+              --target-tags=http-server
+          else
+            echo "Firewall rule '${RULE_NAME}' already exists"
+          fi
         '''
       }
     }
 
     stage('Upload compose.yml to VM') {
       steps {
-        sshagent(['gcp-ssh-key']) {
-          sh """
-            ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${SSH_USER}@${params.PUBLIC_IP} mkdir -p ~/fdo-test
-            scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null fdo-test/compose.yml ${SSH_USER}@${params.PUBLIC_IP}:~/fdo-test/compose.yml
-          """
+        sshagent(['jenkins']) {
+          sh '''
+            ssh -o StrictHostKeyChecking=no jenkins@34.16.46.234 'mkdir -p /home/jenkins/fdo-test'
+            scp -o StrictHostKeyChecking=no fdo-test/compose.yml jenkins@34.16.46.234:/home/jenkins/fdo-test/
+          '''
         }
       }
     }
 
     stage('Install TFE') {
       steps {
-        sshagent(['gcp-ssh-key']) {
-          sh """
-            ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${SSH_USER}@${params.PUBLIC_IP} 'bash -s' <<'EOF'
-              set -euo pipefail
-
-              DOMAIN_NAME="${params.DOMAIN_NAME}"
-              TFE_LICENSE="${params.TFE_LICENSE}"
-
-              echo "[INFO] Verifying docker compose is installed..."
-              if ! command -v docker-compose &>/dev/null && ! docker compose version &>/dev/null; then
-                echo "[ERROR] Docker Compose is not installed!" >&2
-                exit 1
-              fi
-
-              echo "[INFO] Creating certs directory and preparing compose environment..."
-              mkdir -p ~/fdo-test/certs
-              cd ~/fdo-test
-
-              echo "[INFO] Copying TLS certificates..."
-              sudo cp -p /etc/letsencrypt/live/$DOMAIN_NAME/fullchain.pem certs/cert.pem
-              sudo cp -p /etc/letsencrypt/live/$DOMAIN_NAME/privkey.pem certs/key.pem
-              cp certs/cert.pem certs/bundle.pem
-
-              echo "[INFO] Logging into Docker registry..."
-              echo "$TFE_LICENSE" | sudo docker login --username terraform --password-stdin images.releases.hashicorp.com
-
-              echo "[INFO] Starting Docker Compose..."
-              sudo docker compose up -d
-            EOF
-          """
+        sshagent(['jenkins']) {
+          sh '''
+            ssh -o StrictHostKeyChecking=no jenkins@34.16.46.234 '
+              cd /home/jenkins/fdo-test &&
+              docker compose -f compose.yml up -d
+            '
+          '''
         }
       }
     }
