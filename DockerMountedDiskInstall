@@ -35,8 +35,8 @@ pipeline {
           string(name: 'PRIVATE_IP', value: params.VM_PRIVATE_IP),
           string(name: 'PUBLIC_IP', value: params.VM_PUBLIC_IP),
           string(name: 'RELEASE_VERSION', value: params.RELEASE_VERSION),
-          string(name: 'DOMAIN_NAME', value: params.DOMAIN_NAME)
-          password(name: 'TFE_LICENSE', description: 'TFE license string')
+          string(name: 'DOMAIN_NAME', value: params.DOMAIN_NAME),
+          password(name: 'TFE_LICENSE', value: params.TFE_LICENSE)
         ]
       }
     }
