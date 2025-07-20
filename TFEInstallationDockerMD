@@ -1,5 +1,3 @@
-// TFE installation for Docker with Mounted Disk
-
 pipeline {
   agent any
 
@@ -16,7 +14,6 @@ pipeline {
   }
 
   stages {
-
     stage('Clone Compose Template') {
       steps {
         git branch: 'main', url: 'https://github.com/kunal-hashicorp/DockerCompose.git'
@@ -25,7 +22,7 @@ pipeline {
 
     stage('Generate compose.yml from template') {
       steps {
-        sh '''#!/bin/bash
+        sh '''
           mkdir -p fdo-test
           sed -e "s|__TFE_VERSION__|${RELEASE_VERSION}|g" \\
               -e "s|__TFE_LICENSE__|${TFE_LICENSE}|g" \\
@@ -38,10 +35,10 @@ pipeline {
     stage('Upload compose.yml to VM') {
       steps {
         sshagent(['gcp-ssh-key']) {
-          sh '''#!/bin/bash
-            ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null jenkins@${PUBLIC_IP} "mkdir -p /home/jenkins/fdo-test"
-            scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null fdo-test/compose.yml jenkins@${PUBLIC_IP}:/home/jenkins/fdo-test/
-          '''
+          sh """
+            ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${SSH_USER}@${params.PUBLIC_IP} mkdir -p ~/fdo-test
+            scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null fdo-test/compose.yml ${SSH_USER}@${params.PUBLIC_IP}:~/fdo-test/compose.yml
+          """
         }
       }
     }
@@ -49,34 +46,35 @@ pipeline {
     stage('Install TFE') {
       steps {
         sshagent(['gcp-ssh-key']) {
-          sh '''#!/bin/bash
-            ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${SSH_USER}@${PUBLIC_IP} bash -s <<'EOF'
+          sh """
+            ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${SSH_USER}@${params.PUBLIC_IP} 'bash -s' <<'EOF'
               set -euo pipefail
 
+              DOMAIN_NAME="${params.DOMAIN_NAME}"
+              TFE_LICENSE="${params.TFE_LICENSE}"
+
               echo "[INFO] Verifying docker compose is installed..."
-              if ! command -v docker &>/dev/null || ! docker compose version &>/dev/null; then
-                echo "ERROR: 'docker compose' not found. Please install it before running this pipeline."
+              if ! command -v docker-compose &>/dev/null && ! docker compose version &>/dev/null; then
+                echo "[ERROR] Docker Compose is not installed!" >&2
                 exit 1
               fi
 
               echo "[INFO] Creating certs directory and preparing compose environment..."
-              mkdir -p $HOME/fdo-test/certs
-              cd $HOME/fdo-test
+              mkdir -p ~/fdo-test/certs
+              cd ~/fdo-test
 
               echo "[INFO] Copying TLS certificates..."
-              sudo cp -p /etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem certs/cert.pem
-              sudo cp -p /etc/letsencrypt/live/${DOMAIN_NAME}/privkey.pem certs/key.pem
+              sudo cp -p /etc/letsencrypt/live/$DOMAIN_NAME/fullchain.pem certs/cert.pem
+              sudo cp -p /etc/letsencrypt/live/$DOMAIN_NAME/privkey.pem certs/key.pem
               cp certs/cert.pem certs/bundle.pem
 
               echo "[INFO] Logging into Docker registry..."
-              set +x
-              echo '${TFE_LICENSE}' | sudo docker login --username terraform --password-stdin images.releases.hashicorp.com
-              set -x
+              echo "$TFE_LICENSE" | sudo docker login --username terraform --password-stdin images.releases.hashicorp.com
 
               echo "[INFO] Starting Docker Compose..."
               sudo docker compose up -d
             EOF
-          '''
+          """
         }
       }
     }
