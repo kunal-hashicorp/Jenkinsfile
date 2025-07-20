@@ -1,5 +1,3 @@
-// Install certbot and generate certificate
-
 pipeline {
   agent any
 
@@ -20,16 +18,18 @@ echo '[INFO] Installing Certbot...'
 sudo apt update
 sudo apt install certbot -y
 
-echo '[INFO] Requesting TLS cert for ${params.DOMAIN_NAME}...'
+DOMAIN_CLEAN=\$(echo ${params.DOMAIN_NAME} | sed 's/\\.\$//')
+
+echo '[INFO] Requesting TLS cert for \$DOMAIN_CLEAN...'
 sudo certbot certonly --standalone \\
   --preferred-challenges http \\
   --email kunal.singh@hashicorp.com \\
   --agree-tos \\
   --no-eff-email \\
-  -d ${params.DOMAIN_NAME}
+  -d \$DOMAIN_CLEAN
 
 echo '[INFO] Listing generated certificates...'
-sudo ls -l /etc/letsencrypt/live/${params.DOMAIN_NAME}
+sudo ls -l /etc/letsencrypt/live/\$DOMAIN_CLEAN
 EOF
           """
         }
