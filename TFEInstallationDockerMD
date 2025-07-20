@@ -25,7 +25,7 @@ pipeline {
 
     stage('Generate compose.yml from template') {
       steps {
-        sh '''
+        sh '''#!/bin/bash
           mkdir -p fdo-test
           sed -e "s|__TFE_VERSION__|${RELEASE_VERSION}|g" \\
               -e "s|__TFE_LICENSE__|${TFE_LICENSE}|g" \\
@@ -35,22 +35,22 @@ pipeline {
       }
     }
 
-  stage('Upload compose.yml to VM') {
-  steps {
-    sshagent(['gcp-ssh-key']) {
-      sh '''
-        ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null jenkins@${params.PUBLIC_IP} "mkdir -p /home/jenkins/fdo-test"
-        scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null fdo-test/compose.yml jenkins@${params.PUBLIC_IP}:/home/jenkins/fdo-test/
-      '''
+    stage('Upload compose.yml to VM') {
+      steps {
+        sshagent(['gcp-ssh-key']) {
+          sh '''#!/bin/bash
+            ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null jenkins@${PUBLIC_IP} "mkdir -p /home/jenkins/fdo-test"
+            scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null fdo-test/compose.yml jenkins@${PUBLIC_IP}:/home/jenkins/fdo-test/
+          '''
+        }
+      }
     }
-  }
-}
 
     stage('Install TFE') {
       steps {
         sshagent(['gcp-ssh-key']) {
-          sh """
-            ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${SSH_USER}@${params.PUBLIC_IP} bash -s <<'EOF'
+          sh '''#!/bin/bash
+            ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${SSH_USER}@${PUBLIC_IP} bash -s <<'EOF'
               set -euo pipefail
 
               echo "[INFO] Verifying docker compose is installed..."
@@ -60,8 +60,8 @@ pipeline {
               fi
 
               echo "[INFO] Creating certs directory and preparing compose environment..."
-              mkdir -p \$HOME/fdo-test/certs
-              cd \$HOME/fdo-test
+              mkdir -p $HOME/fdo-test/certs
+              cd $HOME/fdo-test
 
               echo "[INFO] Copying TLS certificates..."
               sudo cp -p /etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem certs/cert.pem
@@ -76,7 +76,7 @@ pipeline {
               echo "[INFO] Starting Docker Compose..."
               sudo docker compose up -d
             EOF
-          """
+          '''
         }
       }
     }
