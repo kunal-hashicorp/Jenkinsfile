@@ -1,0 +1,77 @@
+# Replicated Mounted Disk Installation
+
+pipeline {
+  agent any
+
+  parameters {
+    string(name: 'RELEASE_VERSION', description: 'PTFE release sequence number')
+  }
+
+  environment {
+    GOOGLE_APPLICATION_CREDENTIALS = credentials('gcp-sa-key')
+  }
+
+  stages {
+    stage('Checkout') {
+      steps {
+        git branch: 'feature/Test', url: 'https://github.com/kunal-hashicorp/GCP-Infra.git'
+      }
+    }
+
+    stage('Terraform Init') {
+      steps {
+        sh 'terraform init -reconfigure'
+      }
+    }
+
+    stage('Terraform Plan & Apply') {
+      steps {
+        sh 'terraform plan -var-file=terraform.tfvars -out=tfplan'
+        sh 'terraform apply -auto-approve tfplan'
+      }
+    }
+
+    stage('Fetch Terraform Outputs') {
+      steps {
+        script {
+          env.VM_PUBLIC_IP  = sh(script: "terraform output -raw instance_public_ip", returnStdout: true).trim()
+          env.VM_PRIVATE_IP = sh(script: "terraform output -raw instance_private_ip", returnStdout: true).trim()
+          env.DOMAIN_NAME   = sh(script: "terraform output -raw dns_full_record", returnStdout: true).trim()
+
+          echo "Public IP: ${env.VM_PUBLIC_IP}"
+          echo "Private IP: ${env.VM_PRIVATE_IP}"
+          echo "Domain Name: ${env.DOMAIN_NAME}"
+          sleep(time: 30, unit: 'SECONDS')
+        }
+      }
+    }
+
+    stage('Step 1 - Install Docker & Docker Compose') {
+      steps {
+        build job: 'Docker Compose Installation', parameters: [
+          string(name: 'VM_PUBLIC_IP', value: env.VM_PUBLIC_IP)
+        ]
+      }
+    }
+
+    stage('Step 2 - Generate TLS Certificate') {
+      steps {
+        build job: 'Generate Certificate', parameters: [
+          string(name: 'VM_PUBLIC_IP', value: env.VM_PUBLIC_IP),
+          string(name: 'DOMAIN_NAME', value: env.DOMAIN_NAME)
+        ]
+      }
+    }
+
+    stage('Step 3 - Install PTFE') {
+      steps {
+        build job: 'Replicated TFE installer', parameters: [
+          string(name: 'PRIVATE_IP', value: env.VM_PRIVATE_IP),
+          string(name: 'PUBLIC_IP', value: env.VM_PUBLIC_IP),
+          string(name: 'RELEASE_VERSION', value: params.RELEASE_VERSION),
+          string(name: 'DOMAIN_NAME', value: env.DOMAIN_NAME)
+        ]
+      }
+    }
+  }
+}
