@@ -1,0 +1,38 @@
+pipeline {
+  agent any
+
+  parameters {
+    string(name: 'STATE_BUCKET', defaultValue: '', description: 'Enter the GCS bucket name for Terraform state')
+  }
+
+  environment {
+    GOOGLE_APPLICATION_CREDENTIALS = credentials('gcp-sa-key')
+  }
+
+  stages {
+    stage('Checkout') {
+      steps {
+        git branch: 'feature/ReplicatedMD', url: 'https://github.com/kunal-hashicorp/GCP-Infra.git'
+      }
+    }
+
+    stage('Terraform Init') {
+      steps {
+        sh """
+          terraform init -reconfigure \
+            -backend-config="bucket=${params.STATE_BUCKET}" \
+            -backend-config="prefix=terraform/state"
+        """
+      }
+    }
+
+    stage('Terraform Destroy') {
+      steps {
+        input "Approve to destroy resources from bucket ${params.STATE_BUCKET}?"
+        sh """
+          terraform destroy -auto-approve
+        """
+      }
+    }
+  }
+}
