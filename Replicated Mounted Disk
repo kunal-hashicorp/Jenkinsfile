@@ -1,0 +1,118 @@
+pipeline {
+  agent any
+
+  parameters {
+    string(name: 'RELEASE_VERSION', description: 'PTFE release sequence number')
+    string(name: 'GCP_PROJECT',     defaultValue: 'hc-723f1d51c3404bd287a25cd744a', description: 'GCP Project ID')
+    string(name: 'DNS_ZONE_NAME',   defaultValue: 'doormat-useremail',               description: 'Cloud DNS managed zone NAME')
+    string(name: 'DNS_DOMAIN',      defaultValue: 'kunalsingh-9cdbcc.gcp.sbx.hashicorpdemo.com', description: 'Base DNS domain')
+    string(name: 'DNS_RECORD_NAME', defaultValue: 'ks-md-test',                      description: 'DNS record name')
+    string(name: 'STATE_BUCKET',    defaultValue: 'ks2-terraform-state-bucket',      description: 'Terraform state GCS bucket')
+  }
+
+  environment {
+    GOOGLE_APPLICATION_CREDENTIALS = credentials('gcp-sa-key')
+  }
+
+  stages {
+    stage('Checkout') {
+      steps {
+        git branch: 'feature/ReplicatedMD', url: 'https://github.com/kunal-hashicorp/GCP-Infra.git'
+      }
+    }
+
+    stage('Create GCS Bucket if not exists') {
+      steps {
+        sh '''
+          set -e
+          PROJECT_ID=''' + "${params.GCP_PROJECT}" + '''
+          BUCKET_NAME=''' + "${params.STATE_BUCKET}" + '''
+          LOCATION=us
+
+          echo "Activating service account..."
+          gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
+          gcloud config set project "$PROJECT_ID"
+
+          echo "Checking if bucket gs://$BUCKET_NAME exists in project $PROJECT_ID..."
+          if gcloud storage buckets describe "gs://$BUCKET_NAME" --project "$PROJECT_ID" >/dev/null 2>&1; then
+            echo "Bucket $BUCKET_NAME already exists."
+          else
+            echo "Bucket $BUCKET_NAME does not exist. Creating..."
+            gcloud storage buckets create "gs://$BUCKET_NAME" \
+              --project="$PROJECT_ID" \
+              --location="$LOCATION" \
+              --uniform-bucket-level-access
+          fi
+        '''
+      }
+    }
+
+    stage('Terraform Init') {
+      steps {
+        sh """
+          terraform init \
+            -backend-config="bucket=${params.STATE_BUCKET}" \
+            -backend-config="prefix=terraform/state" \
+            -reconfigure
+        """
+      }
+    }
+
+    stage('Terraform Plan & Apply') {
+      steps {
+        sh """
+          terraform plan -input=false \
+            -var="gcp_project=${params.GCP_PROJECT}" \
+            -var="dns_zone_name=${params.DNS_ZONE_NAME}" \
+            -var="dns_domain=${params.DNS_DOMAIN}" \
+            -var="dns_record_name=${params.DNS_RECORD_NAME}" \
+            -out=tfplan
+        """
+        sh 'terraform apply -auto-approve -input=false tfplan'
+      }
+    }
+
+    stage('Fetch Terraform Outputs') {
+      steps {
+        script {
+          env.VM_PUBLIC_IP  = sh(script: "terraform output -raw instance_public_ip", returnStdout: true).trim()
+          env.VM_PRIVATE_IP = sh(script: "terraform output -raw instance_private_ip", returnStdout: true).trim()
+          env.DOMAIN_NAME   = sh(script: "terraform output -raw dns_full_record", returnStdout: true).trim()
+
+          echo "Public IP: ${env.VM_PUBLIC_IP}"
+          echo "Private IP: ${env.VM_PRIVATE_IP}"
+          echo "Domain Name: ${env.DOMAIN_NAME}"
+          sleep(time: 30, unit: 'SECONDS')
+        }
+      }
+    }
+
+    stage('Step 1 - Install Docker & Docker Compose') {
+      steps {
+        build job: 'Docker Compose Installation', parameters: [
+          string(name: 'VM_PUBLIC_IP', value: env.VM_PUBLIC_IP)
+        ]
+      }
+    }
+
+    stage('Step 2 - Generate TLS Certificate') {
+      steps {
+        build job: 'Generate Certificate', parameters: [
+          string(name: 'VM_PUBLIC_IP', value: env.VM_PUBLIC_IP),
+          string(name: 'DOMAIN_NAME', value: env.DOMAIN_NAME)
+        ]
+      }
+    }
+
+    stage('Step 3 - Install PTFE') {
+      steps {
+        build job: 'Replicated TFE installer', parameters: [
+          string(name: 'PRIVATE_IP', value: env.VM_PRIVATE_IP),
+          string(name: 'PUBLIC_IP', value: env.VM_PUBLIC_IP),
+          string(name: 'RELEASE_VERSION', value: params.RELEASE_VERSION),
+          string(name: 'DOMAIN_NAME', value: env.DOMAIN_NAME)
+        ]
+      }
+    }
+  }
+}
