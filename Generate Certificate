@@ -1,0 +1,43 @@
+pipeline {
+  agent any
+
+  parameters {
+    string(name: 'VM_PUBLIC_IP', description: 'Public IP of the GCP VM')
+    string(name: 'DOMAIN_NAME', description: 'Domain name (e.g. ks-fod-test-kunalsingh-17b577.gcp.sbx.hashicorpdemo.com)')
+  }
+
+  stages {
+    stage('Install Certbot and Generate TLS Certificate') {
+      steps {
+        sshagent(credentials: ['gcp-ssh-key']) {
+          sh """
+            echo '[INFO] Connecting to ${params.VM_PUBLIC_IP}...'
+            ssh -o StrictHostKeyChecking=no jenkins@${params.VM_PUBLIC_IP} 'bash -s' << 'EOF'
+set -e
+
+echo '[INFO] Installing Certbot...'
+# Handle apt lock issues with retries
+for i in {1..5}; do
+  sudo apt update && sudo apt install -y certbot && break || sleep 5
+done
+
+# Clean trailing dot from domain (e.g., ensure no ending .)
+DOMAIN_CLEAN=\$(echo "${params.DOMAIN_NAME}" | sed 's/\\.\$//')
+
+echo "[INFO] Requesting TLS cert for \$DOMAIN_CLEAN..."
+sudo certbot certonly --standalone \\
+  --preferred-challenges http \\
+  --email kunal.singh@hashicorp.com \\
+  --agree-tos \\
+  --no-eff-email \\
+  -d "\$DOMAIN_CLEAN"
+
+echo "[INFO] Listing generated certificates..."
+sudo ls -l "/etc/letsencrypt/live/\$DOMAIN_CLEAN"
+EOF
+          """
+        }
+      }
+    }
+  }
+}
