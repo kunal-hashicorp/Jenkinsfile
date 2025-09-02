@@ -1,0 +1,37 @@
+pipeline {
+  agent any
+
+  parameters {
+    string(name: 'VM_PUBLIC_IP', description: 'Public IP of the EC2 VM')
+  }
+
+  stages {
+    stage('SSH into VM and Install Docker') {
+      steps {
+        sshagent(credentials: ['gcp-ssh-key']) {
+          sh """
+            echo '[INFO] Connecting to ${params.VM_PUBLIC_IP} as ubuntu ...'
+            ssh -o StrictHostKeyChecking=no ubuntu@${params.VM_PUBLIC_IP} <<'EOF'
+set -e
+echo '[INFO] Updating packages...'
+sudo apt-get update -y
+
+echo '[INFO] Downloading Docker packages...'
+wget https://download.docker.com/linux/ubuntu/dists/focal/pool/stable/amd64/docker-ce_24.0.2-1~ubuntu.20.04~focal_amd64.deb 
+wget https://download.docker.com/linux/ubuntu/dists/focal/pool/stable/amd64/docker-ce-cli_24.0.2-1~ubuntu.20.04~focal_amd64.deb 
+wget https://download.docker.com/linux/ubuntu/dists/focal/pool/stable/amd64/containerd.io_1.6.24-1_amd64.deb
+
+echo '[INFO] Installing Docker packages...'
+sudo dpkg -i containerd.io_1.6.24-1_amd64.deb
+sudo dpkg -i docker-ce-cli_24.0.2-1~ubuntu.20.04~focal_amd64.deb
+sudo dpkg -i docker-ce_24.0.2-1~ubuntu.20.04~focal_amd64.deb
+
+echo '[INFO] Docker version:'
+docker --version
+EOF
+          """
+        }
+      }
+    }
+  }
+}
