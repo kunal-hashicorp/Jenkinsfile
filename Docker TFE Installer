@@ -1,0 +1,90 @@
+pipeline {
+  agent any
+
+  parameters {
+    string(name: 'PRIVATE_IP', description: 'Private IP of the GCP VM')
+    string(name: 'PUBLIC_IP', description: 'Public IP of the GCP VM')
+    string(name: 'RELEASE_VERSION', description: 'TFE release version')
+    string(name: 'DOMAIN_NAME', description: 'FQDN (e.g. my.domain.com)')
+    password(name: 'TFE_LICENSE', description: 'TFE license string')
+  }
+
+  environment {
+    SSH_USER = "jenkins"
+  }
+
+  stages {
+
+    stage('Clone Compose Template') {
+      steps {
+        git branch: 'main', url: 'https://github.com/kunal-hashicorp/DockerCompose.git'
+      }
+    }
+
+    stage('Generate compose.yml from template') {
+      steps {
+        sh '''
+          mkdir -p fdo-test
+          sed -e "s|__TFE_VERSION__|${RELEASE_VERSION}|g" \
+              -e "s|__TFE_LICENSE__|${TFE_LICENSE}|g" \
+              -e "s|__DOMAIN_NAME__|${DOMAIN_NAME}|g" \
+              compose-template.yml > fdo-test/compose.yml
+
+          # Write license to a file for secure transfer
+          echo "${TFE_LICENSE}" > fdo-test/license.txt
+
+          echo "[INFO] Generated files:"
+          ls -l fdo-test/
+        '''
+      }
+    }
+
+    stage('Upload files to VM') {
+      steps {
+        sshagent(['gcp-ssh-key']) {
+          sh """
+            ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${SSH_USER}@${params.PUBLIC_IP} "mkdir -p ~/fdo-test"
+            scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null fdo-test/compose.yml ${SSH_USER}@${params.PUBLIC_IP}:~/fdo-test/compose.yml
+            scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null fdo-test/license.txt ${SSH_USER}@${params.PUBLIC_IP}:~/fdo-test/license.txt
+          """
+        }
+      }
+    }
+
+    stage('Install TFE') {
+      steps {
+        sshagent(['gcp-ssh-key']) {
+          sh """
+            ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${SSH_USER}@${params.PUBLIC_IP} '
+              set -euo pipefail
+
+              DOMAIN_CLEAN="${params.DOMAIN_NAME}"
+              DOMAIN_CLEAN="\${DOMAIN_CLEAN%.}"
+
+              echo "[INFO] Creating certs directory and preparing compose environment..."
+              mkdir -p ~/fdo-test/certs
+              cd ~/fdo-test
+
+              echo "[INFO] Copying TLS certificates..."
+              sudo cp -p /etc/letsencrypt/live/\$DOMAIN_CLEAN/fullchain.pem certs/cert.pem
+              sudo cp -p /etc/letsencrypt/live/\$DOMAIN_CLEAN/privkey.pem certs/key.pem
+              cp certs/cert.pem certs/bundle.pem
+
+              echo "[INFO] Logging into Docker registry using license.txt..."
+              cat license.txt | sudo docker login --username terraform --password-stdin images.releases.hashicorp.com
+
+              echo "[INFO] Pulling Terraform Enterprise image..."
+              sudo docker pull images.releases.hashicorp.com/hashicorp/terraform-enterprise:${params.RELEASE_VERSION}
+
+              echo "[INFO] Ensuring mount directory exists..."
+              sudo mkdir -p /app
+
+              echo "[INFO] Starting Docker Compose..."
+              sudo docker-compose up -d
+            '
+          """
+        }
+      }
+    }
+  }
+}
