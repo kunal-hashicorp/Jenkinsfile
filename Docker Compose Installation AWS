@@ -1,0 +1,79 @@
+pipeline {
+  agent any
+
+  parameters {
+    string(name: 'VM_PUBLIC_IP', description: 'Public IP of the GCP VM')
+  }
+
+  environment {
+    SSH_USER = 'ubuntu'
+  }
+
+  stages {
+    stage('Install Docker and Compose') {
+      steps {
+        sshagent(credentials: ['gcp-ssh-key']) {
+          sh """
+            echo "[INFO] Cleaning SSH known_hosts..."
+            ssh-keygen -R "${params.VM_PUBLIC_IP}" || true
+
+            echo "[INFO] Connecting to ${params.VM_PUBLIC_IP} as ${SSH_USER} ..."
+            ssh -o StrictHostKeyChecking=no ${SSH_USER}@${params.VM_PUBLIC_IP} << 'EOF'
+              set -e
+
+              echo "[INFO] Waiting for APT lock to be released..."
+              while sudo fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
+                echo "[INFO] Another apt process is running. Waiting..."
+                sleep 5
+              done
+
+              echo "[INFO] Removing old Docker packages (if any)..."
+              sudo apt-get remove -y docker docker-engine docker.io containerd runc || true
+
+              echo "[INFO] Updating system packages..."
+              sudo apt-get update -y
+
+              echo "[INFO] Downloading Docker .deb packages..."
+              wget -nc https://download.docker.com/linux/ubuntu/dists/focal/pool/stable/amd64/containerd.io_1.6.24-1_amd64.deb
+              wget -nc https://download.docker.com/linux/ubuntu/dists/focal/pool/stable/amd64/docker-ce-cli_24.0.2-1~ubuntu.20.04~focal_amd64.deb
+              wget -nc https://download.docker.com/linux/ubuntu/dists/focal/pool/stable/amd64/docker-ce_24.0.2-1~ubuntu.20.04~focal_amd64.deb
+
+              echo "[INFO] Installing Docker .deb packages..."
+              sudo dpkg -i containerd.io_1.6.24-1_amd64.deb
+              sudo dpkg -i docker-ce-cli_24.0.2-1~ubuntu.20.04~focal_amd64.deb
+              sudo dpkg -i docker-ce_24.0.2-1~ubuntu.20.04~focal_amd64.deb
+
+              echo "[INFO] Starting and enabling Docker..."
+              sudo systemctl enable docker
+              sudo systemctl start docker
+
+              echo "[INFO] Docker version:"
+              docker --version
+
+              echo "[INFO] Removing broken Compose plugin (if any)..."
+              sudo apt-get purge -y docker-compose-plugin docker-buildx-plugin || true
+
+              echo "[INFO] Installing Docker Compose v2.24.6..."
+              DOCKER_COMPOSE_VERSION="2.24.6"
+              sudo curl -L "https://github.com/docker/compose/releases/download/v\${DOCKER_COMPOSE_VERSION}/docker-compose-\$(uname -s)-\$(uname -m)" -o /usr/local/bin/docker-compose
+              sudo chmod +x /usr/local/bin/docker-compose
+
+              echo "[INFO] Creating Docker Compose symlinks..."
+              sudo ln -sf /usr/local/bin/docker-compose /usr/local/bin/docker-compose-v2
+              sudo mkdir -p ~/.docker/cli-plugins
+              sudo ln -sf /usr/local/bin/docker-compose ~/.docker/cli-plugins/docker-compose
+
+              echo "[INFO] Verifying Docker Compose..."
+              docker-compose --version
+
+              echo "[INFO] Running Docker test container..."
+              sudo docker run hello-world || true
+
+              echo "[INFO] Installation complete."
+EOF
+          """
+        }
+      }
+    }
+  }
+}
