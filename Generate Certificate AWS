@@ -2,32 +2,38 @@ pipeline {
   agent any
 
   parameters {
-    string(name: 'VM_PUBLIC_IP', description: 'Public IP of the EC2 VM')
+    string(name: 'VM_PUBLIC_IP', description: 'Public IP of the GCP VM')
+    string(name: 'DOMAIN_NAME', description: 'Domain name (e.g. ks-fod-test-kunalsingh-17b577.gcp.sbx.hashicorpdemo.com)')
   }
 
   stages {
-    stage('SSH into VM and Install Docker') {
+    stage('Install Certbot and Generate TLS Certificate') {
       steps {
         sshagent(credentials: ['gcp-ssh-key']) {
           sh """
-            echo '[INFO] Connecting to ${params.VM_PUBLIC_IP} as ubuntu ...'
-            ssh -o StrictHostKeyChecking=no ubuntu@${params.VM_PUBLIC_IP} <<'EOF'
+            echo '[INFO] Connecting to ${params.VM_PUBLIC_IP}...'
+            ssh -o StrictHostKeyChecking=no ubuntu@${params.VM_PUBLIC_IP} 'bash -s' << 'EOF'
 set -e
-echo '[INFO] Updating packages...'
-sudo apt-get update -y
 
-echo '[INFO] Downloading Docker packages...'
-wget https://download.docker.com/linux/ubuntu/dists/focal/pool/stable/amd64/docker-ce_24.0.2-1~ubuntu.20.04~focal_amd64.deb 
-wget https://download.docker.com/linux/ubuntu/dists/focal/pool/stable/amd64/docker-ce-cli_24.0.2-1~ubuntu.20.04~focal_amd64.deb 
-wget https://download.docker.com/linux/ubuntu/dists/focal/pool/stable/amd64/containerd.io_1.6.24-1_amd64.deb
+echo '[INFO] Installing Certbot...'
+# Handle apt lock issues with retries
+for i in {1..5}; do
+  sudo apt update && sudo apt install -y certbot && break || sleep 5
+done
 
-echo '[INFO] Installing Docker packages...'
-sudo dpkg -i containerd.io_1.6.24-1_amd64.deb
-sudo dpkg -i docker-ce-cli_24.0.2-1~ubuntu.20.04~focal_amd64.deb
-sudo dpkg -i docker-ce_24.0.2-1~ubuntu.20.04~focal_amd64.deb
+# Clean trailing dot from domain (e.g., ensure no ending .)
+DOMAIN_CLEAN=\$(echo "${params.DOMAIN_NAME}" | sed 's/\\.\$//')
 
-echo '[INFO] Docker version:'
-docker --version
+echo "[INFO] Requesting TLS cert for \$DOMAIN_CLEAN..."
+sudo certbot certonly --standalone \\
+  --preferred-challenges http \\
+  --email kunal.singh@hashicorp.com \\
+  --agree-tos \\
+  --no-eff-email \\
+  -d "\$DOMAIN_CLEAN"
+
+echo "[INFO] Listing generated certificates..."
+sudo ls -l "/etc/letsencrypt/live/\$DOMAIN_CLEAN"
 EOF
           """
         }
