@@ -44,11 +44,15 @@ pipeline {
         ]) {
           sh '''
             mkdir -p fdo-test
+
+            # Escape sensitive password before substitution
+            ESCAPED_DB_PASWORD=$(printf '%s' "$DB_PASWORD" | sed 's/[&/]/\\\\&/g')
+
             sed -e "s|__TFE_VERSION__|${RELEASE_VERSION}|g" \
                 -e "s|__TFE_LICENSE__|${TFE_LICENSE}|g" \
                 -e "s|__DOMAIN_NAME__|${DOMAIN_NAME}|g" \
                 -e "s|__DB_USER__|${DB_USER}|g" \
-                -e "s|__DB_PASWORD__|${DB_PASWORD}|g" \
+                -e "s|__DB_PASWORD__|$ESCAPED_DB_PASWORD|g" \
                 -e "s|__DB_HOST__|${DB_HOST}|g" \
                 -e "s|__DB_NAME__|${DB_NAME}|g" \
                 -e "s|__S3_REGION__|${S3_REGION}|g" \
@@ -60,6 +64,8 @@ pipeline {
 
             echo "[INFO] Generated files:"
             ls -l fdo-test/
+            echo "[INFO] Preview of compose.yml:"
+            head -20 fdo-test/compose.yml
           '''
         }
       }
