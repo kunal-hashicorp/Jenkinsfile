@@ -29,25 +29,39 @@ pipeline {
 
     stage('Generate compose.yml from template') {
       steps {
-        sh '''
-          mkdir -p fdo-test
-          sed -e "s|__TFE_VERSION__|${RELEASE_VERSION}|g" \
-              -e "s|__TFE_LICENSE__|${TFE_LICENSE}|g" \
-              -e "s|__DOMAIN_NAME__|${DOMAIN_NAME}|g" \
-              -e "s|__DB_USER__|${DB_USER}|g" \
-              -e "s|__DB_PASWORD__|${DB_PASWORD}|g" \
-              -e "s|__DB_HOST__|${DB_HOST}|g" \
-              -e "s|__DB_NAME__|${DB_NAME}|g" \
-              -e "s|__S3_REGION__|${S3_REGION}|g" \
-              -e "s|__S3_BUCKETNAME__|${S3_BUCKETNAME}|g" \
-              compose-template.yml > fdo-test/compose.yml
+        withEnv([
+          "PRIVATE_IP=${params.PRIVATE_IP}",
+          "PUBLIC_IP=${params.PUBLIC_IP}",
+          "RELEASE_VERSION=${params.RELEASE_VERSION}",
+          "DOMAIN_NAME=${params.DOMAIN_NAME}",
+          "DB_USER=${params.DB_USER}",
+          "DB_PASWORD=${params.DB_PASWORD}",
+          "DB_HOST=${params.DB_HOST}",
+          "DB_NAME=${params.DB_NAME}",
+          "S3_REGION=${params.S3_REGION}",
+          "S3_BUCKETNAME=${params.S3_BUCKETNAME}",
+          "TFE_LICENSE=${params.TFE_LICENSE}"
+        ]) {
+          sh '''
+            mkdir -p fdo-test
+            sed -e "s|__TFE_VERSION__|${RELEASE_VERSION}|g" \
+                -e "s|__TFE_LICENSE__|${TFE_LICENSE}|g" \
+                -e "s|__DOMAIN_NAME__|${DOMAIN_NAME}|g" \
+                -e "s|__DB_USER__|${DB_USER}|g" \
+                -e "s|__DB_PASWORD__|${DB_PASWORD}|g" \
+                -e "s|__DB_HOST__|${DB_HOST}|g" \
+                -e "s|__DB_NAME__|${DB_NAME}|g" \
+                -e "s|__S3_REGION__|${S3_REGION}|g" \
+                -e "s|__S3_BUCKETNAME__|${S3_BUCKETNAME}|g" \
+                compose-template.yml > fdo-test/compose.yml
 
-          # Write license to a file for secure transfer
-          echo "${TFE_LICENSE}" > fdo-test/license.txt
+            # Write license to a file for secure transfer
+            echo "${TFE_LICENSE}" > fdo-test/license.txt
 
-          echo "[INFO] Generated files:"
-          ls -l fdo-test/
-        '''
+            echo "[INFO] Generated files:"
+            ls -l fdo-test/
+          '''
+        }
       }
     }
 
