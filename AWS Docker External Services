@@ -7,7 +7,7 @@ pipeline {
     string(name: 'DOMAIN_NAME', description: 'Domain name (e.g. example.com)')
     string(name: 'RELEASE_VERSION', description: 'PTFE release sequence number')
     string(name: 'DB_USER', description: 'Database Username')
-    string(name: 'DB_PASWORD', description: 'Database Password')
+    string(name: 'DB_PASSWORD', description: 'Database Password')
     string(name: 'DB_HOST', description: 'Database Hostname')
     string(name: 'DB_NAME', description: 'Database Name')
     string(name: 'S3_REGION', description: 'S3 Region')
@@ -41,7 +41,7 @@ pipeline {
           string(name: 'RELEASE_VERSION', value: params.RELEASE_VERSION),
           string(name: 'DOMAIN_NAME', value: params.DOMAIN_NAME),
           string(name: 'DB_USER', description: 'Database Username'),
-          string(name: 'DB_PASWORD', description: 'Database Password'),
+          string(name: 'DB_PASSWORD', description: 'Database Password'),
           string(name: 'DB_HOST', description: 'Database Hostname'),
           string(name: 'DB_NAME', description: 'Database Name'),
           string(name: 'S3_REGION', description: 'S3 Region'),
