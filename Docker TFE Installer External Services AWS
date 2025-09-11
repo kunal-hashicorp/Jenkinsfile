@@ -30,7 +30,7 @@ pipeline {
     stage('Generate compose.yml from template') {
       steps {
         script {
-          
+       
           def escapedDbPassword = params.DB_PASSWORD.replaceAll(/([\/&])/,'\\\\$1')
     
           sh """
