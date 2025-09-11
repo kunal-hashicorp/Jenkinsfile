@@ -2,10 +2,10 @@ pipeline {
   agent any
 
   parameters {
-    string(name: 'VM_PUBLIC_IP', description: 'Public IP of the GCP VM')
-    string(name: 'VM_PRIVATE_IP', description: 'Private IP of the GCP VM')
-    string(name: 'DOMAIN_NAME', description: 'Domain name (e.g. example.com)')
-    string(name: 'RELEASE_VERSION', description: 'PTFE release sequence number')
+    string(name: 'PRIVATE_IP', description: 'Private IP of the GCP VM')
+    string(name: 'PUBLIC_IP', description: 'Public IP of the GCP VM')
+    string(name: 'RELEASE_VERSION', description: 'TFE release version')
+    string(name: 'DOMAIN_NAME', description: 'FQDN (e.g. my.domain.com)')
     string(name: 'DB_USER', description: 'Database Username')
     string(name: 'DB_PASSWORD', description: 'Database Password')
     string(name: 'DB_HOST', description: 'Database Hostname')
@@ -36,17 +36,17 @@ pipeline {
     stage('Step 3 - Install TFE') {
       steps {
         build job: 'Docker TFE Installer External Services AWS', parameters: [
-          string(name: 'PRIVATE_IP', value: params.VM_PRIVATE_IP),
-          string(name: 'PUBLIC_IP', value: params.VM_PUBLIC_IP),
-          string(name: 'RELEASE_VERSION', value: params.RELEASE_VERSION),
-          string(name: 'DOMAIN_NAME', value: params.DOMAIN_NAME),
-          string(name: 'DB_USER', description: 'Database Username'),
-          string(name: 'DB_PASSWORD', description: 'Database Password'),
-          string(name: 'DB_HOST', description: 'Database Hostname'),
-          string(name: 'DB_NAME', description: 'Database Name'),
-          string(name: 'S3_REGION', description: 'S3 Region'),
-          string(name: 'S3_BUCKETNAME', description: 'S3 Name'),
-          password(name: 'TFE_LICENSE', value: params.TFE_LICENSE)
+          string(name: 'PRIVATE_IP', description: 'Private IP of the GCP VM')
+          string(name: 'PUBLIC_IP', description: 'Public IP of the GCP VM')
+          string(name: 'RELEASE_VERSION', description: 'TFE release version')
+          string(name: 'DOMAIN_NAME', description: 'FQDN (e.g. my.domain.com)')
+          string(name: 'DB_USER', description: 'Database Username')
+          string(name: 'DB_PASSWORD', description: 'Database Password')
+          string(name: 'DB_HOST', description: 'Database Hostname')
+          string(name: 'DB_NAME', description: 'Database Name')
+          string(name: 'S3_REGION', description: 'S3 Region')
+          string(name: 'S3_BUCKETNAME', description: 'S3 Name')
+          password(name: 'TFE_LICENSE', description: 'TFE license string')
         ]
       }
     }
