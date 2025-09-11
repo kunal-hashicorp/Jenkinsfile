@@ -15,6 +15,7 @@ pipeline {
     password(name: 'TFE_LICENSE', description: 'TFE license string')
   }
 
+  stages {
     stage('Step 1 - Install Docker & Docker Compose') {
       steps {
         build job: 'Docker Compose Installation AWS', parameters: [
@@ -22,7 +23,7 @@ pipeline {
         ]
       }
     }
-  
+
     stage('Step 2 - Generate TLS Cert') {
       steps {
         build job: 'Generate Certificate AWS', parameters: [
