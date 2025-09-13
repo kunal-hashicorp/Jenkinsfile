@@ -35,7 +35,7 @@ pipeline {
 
     stage('Step 3 - Install TFE') {
       steps {
-        build job: 'Docker TFE Installer External Services AWS', parameters: [
+        build job: 'Docker TFE Installer External Services Azure', parameters: [
           string(name: 'PRIVATE_IP', value: params.PRIVATE_IP),
           string(name: 'PUBLIC_IP', value: params.PUBLIC_IP),
           string(name: 'RELEASE_VERSION', value: params.RELEASE_VERSION),
