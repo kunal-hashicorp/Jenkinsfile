@@ -1,0 +1,54 @@
+pipeline {
+  agent any
+
+  parameters {
+    string(name: 'PRIVATE_IP', description: 'Private IP of the GCP VM')
+    string(name: 'PUBLIC_IP', description: 'Public IP of the GCP VM')
+    string(name: 'RELEASE_VERSION', description: 'TFE release version')
+    string(name: 'DOMAIN_NAME', description: 'FQDN (e.g. my.domain.com)')
+    string(name: 'DB_USER', description: 'Database Username')
+    string(name: 'DB_PASSWORD', description: 'Database Password')
+    string(name: 'DB_HOST', description: 'Database Hostname')
+    string(name: 'DB_NAME', description: 'Database Name')
+    string(name: 'BlobStorage_REGION', description: 'BlobStorage Region')
+    string(name: 'BlobStorage_Name', description: 'BlobStorage Name')
+    password(name: 'TFE_LICENSE', description: 'TFE license string')
+  }
+
+  stages {
+    stage('Step 1 - Install Docker & Docker Compose') {
+      steps {
+        build job: 'Docker Compose Installation AWS', parameters: [
+          string(name: 'VM_PUBLIC_IP', value: params.PUBLIC_IP)
+        ]
+      }
+    }
+
+    stage('Step 2 - Generate TLS Cert') {
+      steps {
+        build job: 'Generate Certificate AWS', parameters: [
+          string(name: 'VM_PUBLIC_IP', value: params.PUBLIC_IP),
+          string(name: 'DOMAIN_NAME', value: params.DOMAIN_NAME)
+        ]
+      }
+    }
+
+    stage('Step 3 - Install TFE') {
+      steps {
+        build job: 'Docker TFE Installer External Services AWS', parameters: [
+          string(name: 'PRIVATE_IP', value: params.PRIVATE_IP),
+          string(name: 'PUBLIC_IP', value: params.PUBLIC_IP),
+          string(name: 'RELEASE_VERSION', value: params.RELEASE_VERSION),
+          string(name: 'DOMAIN_NAME', value: params.DOMAIN_NAME),
+          string(name: 'DB_USER', value: params.DB_USER),
+          string(name: 'DB_PASSWORD', value: params.DB_PASSWORD),
+          string(name: 'DB_HOST', value: params.DB_HOST),
+          string(name: 'DB_NAME', value: params.DB_NAME),
+          string(name: 'BlobStorage_REGION', value: params.BlobStorage_REGION),
+          string(name: 'BlobStorage_Name', value: params.BlobStorage_Name),
+          password(name: 'TFE_LICENSE', value: params.TFE_LICENSE)
+        ]
+      }
+    }
+  }
+}
