@@ -1,0 +1,106 @@
+pipeline {
+  agent any
+
+  parameters {
+    string(name: 'PRIVATE_IP', description: 'Private IP of the GCP VM')
+    string(name: 'PUBLIC_IP', description: 'Public IP of the GCP VM')
+    string(name: 'RELEASE_VERSION', description: 'TFE release version')
+    string(name: 'DOMAIN_NAME', description: 'FQDN (e.g. my.domain.com)')
+    string(name: 'DB_USER', description: 'Database Username')
+    string(name: 'DB_PASSWORD', description: 'Database Password')
+    string(name: 'DB_HOST', description: 'Database Hostname')
+    string(name: 'DB_NAME', description: 'Database Name')
+    string(name: 'S3_REGION', description: 'S3 Region')
+    string(name: 'S3_BUCKETNAME', description: 'S3 Name')
+    password(name: 'TFE_LICENSE', description: 'TFE license string')
+  }
+
+  environment {
+    SSH_USER = "ubuntu"
+  }
+
+  stages {
+
+    stage('Clone Compose Template') {
+      steps {
+        git branch: 'feature/AZURE_DockerES', url: 'https://github.com/kunal-hashicorp/DockerCompose.git'
+      }
+    }
+
+    stage('Generate compose.yml from template') {
+      steps {
+        script {
+       
+          def escapedDbPassword = params.DB_PASSWORD.replaceAll(/([\/&])/,'\\\\$1')
+    
+          sh """
+            mkdir -p fdo-test
+            sed -e "s|__TFE_VERSION__|${params.RELEASE_VERSION}|g" \
+                -e "s|__TFE_LICENSE__|${params.TFE_LICENSE}|g" \
+                -e "s|__DOMAIN_NAME__|${params.DOMAIN_NAME}|g" \
+                -e "s|__DB_USER__|${params.DB_USER}|g" \
+                -e "s|__DB_PASSWORD__|${escapedDbPassword}|g" \
+                -e "s|__DB_HOST__|${params.DB_HOST}|g" \
+                -e "s|__DB_NAME__|${params.DB_NAME}|g" \
+                -e "s|__BLOB_REGION__|${params.BlobStorage_REGION}|g" \
+                -e "s|__BLOB_BUCKETNAME__|${params.BlobStorage_Name}|g" \
+                compose-template.yml > fdo-test/compose.yml
+    
+            echo "${params.TFE_LICENSE}" > fdo-test/license.txt
+    
+            echo "[INFO] Generated files:"
+            cat fdo-test/compose.yml
+          """
+        }
+      }
+    }
+
+    stage('Upload files to VM') {
+      steps {
+        sshagent(['gcp-ssh-key']) {
+          sh """
+            ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${SSH_USER}@${params.PUBLIC_IP} "mkdir -p ~/fdo-test"
+            scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null fdo-test/compose.yml ${SSH_USER}@${params.PUBLIC_IP}:~/fdo-test/compose.yml
+            scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null fdo-test/license.txt ${SSH_USER}@${params.PUBLIC_IP}:~/fdo-test/license.txt
+          """
+        }
+      }
+    }
+
+    stage('Install TFE') {
+      steps {
+        sshagent(['gcp-ssh-key']) {
+          sh """
+            ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${SSH_USER}@${params.PUBLIC_IP} '
+              set -euo pipefail
+
+              DOMAIN_CLEAN="${params.DOMAIN_NAME}"
+              DOMAIN_CLEAN="\${DOMAIN_CLEAN%.}"
+
+              echo "[INFO] Creating certs directory and preparing compose environment..."
+              mkdir -p ~/fdo-test/certs
+              cd ~/fdo-test
+
+              echo "[INFO] Copying TLS certificates..."
+              sudo cp -p /etc/letsencrypt/live/\$DOMAIN_CLEAN/fullchain.pem certs/cert.pem
+              sudo cp -p /etc/letsencrypt/live/\$DOMAIN_CLEAN/privkey.pem certs/key.pem
+              cp certs/cert.pem certs/bundle.pem
+
+              echo "[INFO] Logging into Docker registry using license.txt..."
+              cat license.txt | sudo docker login --username terraform --password-stdin images.releases.hashicorp.com
+
+              echo "[INFO] Pulling Terraform Enterprise image..."
+              sudo docker pull images.releases.hashicorp.com/hashicorp/terraform-enterprise:${params.RELEASE_VERSION}
+
+              echo "[INFO] Ensuring mount directory exists..."
+              sudo mkdir -p /app
+
+              echo "[INFO] Starting Docker Compose..."
+              sudo docker-compose up -d
+            '
+          """
+        }
+      }
+    }
+  }
+}
