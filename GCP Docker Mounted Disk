@@ -2,7 +2,7 @@ pipeline {
   agent any
 
   parameters {
-    string(name: 'RELEASE_VERSION', description: 'PTFE release sequence number')
+    string(name: 'RELEASE_VERSION', description: 'TFE release sequence number')
     string(name: 'GCP_PROJECT',     defaultValue: 'hc-723f1d51c3404bd287a25cd744a', description: 'GCP Project ID')
     string(name: 'DNS_ZONE_NAME',   defaultValue: 'doormat-useremail',               description: 'Cloud DNS managed zone NAME')
     string(name: 'DNS_DOMAIN',      defaultValue: 'kunalsingh-9cdbcc.gcp.sbx.hashicorpdemo.com', description: 'Base DNS domain')
@@ -105,7 +105,7 @@ pipeline {
       }
     }
 
-    stage('Step 3 - Install PTFE') {
+    stage('Step 3 - Install TFE') {
       steps {
         build job: 'Docker TFE Installer', parameters: [
           string(name: 'PRIVATE_IP', value: env.VM_PRIVATE_IP),
