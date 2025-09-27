@@ -1,0 +1,42 @@
+pipeline {
+  agent any
+
+  parameters {
+    string(name: 'VM_PUBLIC_IP', description: 'Public IP of the GCP VM')
+    string(name: 'VM_PRIVATE_IP', description: 'Private IP of the GCP VM')
+    string(name: 'DOMAIN_NAME', description: 'Domain name (e.g. example.com)')
+    string(name: 'RELEASE_VERSION', description: 'PTFE release sequence number')
+    password(name: 'TFE_LICENSE', description: 'TFE license string')
+  }
+
+  stages {
+    stage('Step 1 - Install Docker & Docker Compose') {
+      steps {
+        build job: 'Docker Compose Installation AWS', parameters: [
+          string(name: 'VM_PUBLIC_IP', value: params.VM_PUBLIC_IP)
+        ]
+      }
+    }
+
+    stage('Step 2 - Generate TLS Cert') {
+      steps {
+        build job: 'Generate Certificate AWS', parameters: [
+          string(name: 'VM_PUBLIC_IP', value: params.VM_PUBLIC_IP),
+          string(name: 'DOMAIN_NAME', value: params.DOMAIN_NAME)
+        ]
+      }
+    }
+
+    stage('Step 3 - Install TFE') {
+      steps {
+        build job: 'Docker TFE Installer AWS', parameters: [
+          string(name: 'PRIVATE_IP', value: params.VM_PRIVATE_IP),
+          string(name: 'PUBLIC_IP', value: params.VM_PUBLIC_IP),
+          string(name: 'RELEASE_VERSION', value: params.RELEASE_VERSION),
+          string(name: 'DOMAIN_NAME', value: params.DOMAIN_NAME),
+          password(name: 'TFE_LICENSE', value: params.TFE_LICENSE)
+        ]
+      }
+    }
+  }
+}
