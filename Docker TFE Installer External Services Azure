@@ -10,8 +10,9 @@ pipeline {
     string(name: 'DB_PASSWORD', description: 'Database Password')
     string(name: 'DB_HOST', description: 'Database Hostname')
     string(name: 'DB_NAME', description: 'Database Name')
-    string(name: 'BlobStorage_REGION', description: 'Region')
-    string(name: 'BlobStorage_Name', description: 'BlobStorage Name')
+    string(name: 'BlobStorage_Name', description: 'BlobStorage Account Name')
+    string(name: 'BlobStorage_Container', description: 'BlobStorage Container Name')
+    password(name: 'BlobStorage_KEY', description: 'BlobStorage Key')
     password(name: 'TFE_LICENSE', description: 'TFE license string')
   }
 
@@ -42,8 +43,9 @@ pipeline {
                 -e "s|__DB_PASSWORD__|${escapedDbPassword}|g" \
                 -e "s|__DB_HOST__|${params.DB_HOST}|g" \
                 -e "s|__DB_NAME__|${params.DB_NAME}|g" \
-                -e "s|__BLOB_REGION__|${params.BlobStorage_REGION}|g" \
-                -e "s|__BLOB_BUCKETNAME__|${params.BlobStorage_Name}|g" \
+                -e "s|__BlobStorage_Name__|${params.BlobStorage_Name}|g" \
+                -e "s|__BlobStorage_Container__|${params.BlobStorage_Container}|g" \
+                -e "s|__BlobStorage_KEY__|${params.BlobStorage_KEY}|g" \
                 compose-template.yml > fdo-test/compose.yml
     
             echo "${params.TFE_LICENSE}" > fdo-test/license.txt
