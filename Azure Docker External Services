@@ -45,7 +45,7 @@ pipeline {
           string(name: 'DB_PASSWORD', value: params.DB_PASSWORD),
           string(name: 'DB_HOST', value: params.DB_HOST),
           string(name: 'DB_NAME', value: params.DB_NAME),
-          string(name: 'BlobStorage_KEY', value: params.BlobStorage_KEY),
+          password(name: 'BlobStorage_KEY', value: params.BlobStorage_KEY),
           string(name: 'BlobStorage_Name', value: params.BlobStorage_Name),
           string(name: 'BlobStorage_Container', value: params.BlobStorage_Container),
           password(name: 'TFE_LICENSE', value: params.TFE_LICENSE)
