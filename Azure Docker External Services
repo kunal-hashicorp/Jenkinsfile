@@ -10,8 +10,9 @@ pipeline {
     string(name: 'DB_PASSWORD', description: 'Database Password')
     string(name: 'DB_HOST', description: 'Database Hostname')
     string(name: 'DB_NAME', description: 'Database Name')
-    string(name: 'BlobStorage_REGION', description: 'BlobStorage Region')
-    string(name: 'BlobStorage_Name', description: 'BlobStorage Name')
+    password(name: 'BlobStorage_KEY', description: 'BlobStorage Key')
+    string(name: 'BlobStorage_Name', description: 'BlobStorage Account Name')
+    string(name: 'BlobStorage_Container', description: 'BlobStorage Container Name')
     password(name: 'TFE_LICENSE', description: 'TFE license string')
   }
 
@@ -44,8 +45,9 @@ pipeline {
           string(name: 'DB_PASSWORD', value: params.DB_PASSWORD),
           string(name: 'DB_HOST', value: params.DB_HOST),
           string(name: 'DB_NAME', value: params.DB_NAME),
-          string(name: 'BlobStorage_REGION', value: params.BlobStorage_REGION),
+          string(name: 'BlobStorage_KEY', value: params.BlobStorage_KEY),
           string(name: 'BlobStorage_Name', value: params.BlobStorage_Name),
+          string(name: 'BlobStorage_Container', value: params.BlobStorage_Container),
           password(name: 'TFE_LICENSE', value: params.TFE_LICENSE)
         ]
       }
